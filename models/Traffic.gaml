@@ -88,7 +88,7 @@ species people skills: [moving] control:simple_bdi{
 	//Speed of the agent
 	float speed <- 5 #km/#h;
 	
-	rgb color <- rnd(255);
+	rgb color <-rnd(255);
 	
 	list<int> bus_grades;
 	list<int> feet_grades;
@@ -109,7 +109,7 @@ species people skills: [moving] control:simple_bdi{
 		
 		beginning_time<-8.50; //todo : init with a random value with stats bc of night shift for instance
 		
-		//addr_home <- any_location_in(one_of(building)); //Rajouter un where pour le type
+		//addr_home <-  rnd(255) rnd(255)any_location_in(one_of(building)); //Rajouter un where pour le type
 		//addr_work <- any_location_in(one_of(building));
 		work_building <- one_of(building);
 		home_building <- one_of(building);
@@ -130,6 +130,7 @@ species people skills: [moving] control:simple_bdi{
 		weights_grades <-[rnd(9),rnd(9),rnd(9),rnd(9)]; 
 		
 		do add_desire(be_at_work);
+		do evaluate_transport();
 	}
 	
 	
@@ -152,7 +153,7 @@ species people skills: [moving] control:simple_bdi{
 	//desirs avec priorité sur les paramètres
 	
 	predicate waiting <- new_predicate("waiting");
-	predicate not_time_to_go <- new_predicate("not the time to go");
+	predicate time_to_go <- new_predicate("time to go");
 	
 	
 	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */ 
@@ -164,7 +165,7 @@ species people skills: [moving] control:simple_bdi{
 	perceive target: building where(location distance_to work_building.location < 2) in: view_dist {
 		ask myself {
 			do add_belief(be_at_work);	
-			do wait();
+			//do wait();
 			do add_desire(be_at_home);			
 		}
 	}
@@ -201,7 +202,7 @@ species people skills: [moving] control:simple_bdi{
 	
 	plan lets_go_home intention: be_at_home{
 		path path_followed <- goto (target: home_building.location , on: road_network, recompute_path: false, return_path: true, move_weights: road_weights);
-		
+		do add_subintention(get_current_intention(),mean_of_transport, true);
 		if (path_followed != nil ) {
 			ask (cell overlapping path_followed.shape) {
 				pollution <- pollution + 10.0;
@@ -209,10 +210,10 @@ species people skills: [moving] control:simple_bdi{
 		}
 	}
 		
-	plan wait_plan intention: waiting {
-		do wait;
-	}
-		
+//	plan wait_plan intention: waiting {
+//		do wait;
+//	}
+//		
 	
 	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */ 
 	/*										Rules						   				 */
@@ -221,7 +222,8 @@ species people skills: [moving] control:simple_bdi{
 	rule belief: bike_is_best new_desire: go_by_bike strength: mean_bike;
 	rule belief: car_is_best new_desire: go_by_car strength: mean_car;
 	rule belief: bus_is_best new_desire: go_by_bus strength: mean_bus;
-	rule belief: be_at_home and not_time_to_go new_desire: waiting;
+	
+	//rule belief: be_at_home and not time_to_go new_desire: waiting;
 	
 	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */ 
 	/*										Actions										 */
@@ -252,29 +254,32 @@ species people skills: [moving] control:simple_bdi{
 		 float m <- max(mean_car, mean_bus, mean_bike, mean_feet);
 		 if(m=mean_car){
 		 	mean_of_transport <- go_by_car;	
+		 	color <- #red;
 		 } else if(m=mean_bus){
 		 	mean_of_transport <- go_by_bus;
+		 	color <- #blue;
 		 }else if(m=mean_bike){
 		 	mean_of_transport <- go_by_bike;
+		 	color <- #green;
 		 }else{
 		 	mean_of_transport <- go_by_feet;
+		 	color <- #yellow;
 		 }
 	}
 	
 	
-	action wait {
-		color <- #grey;
-		speed <- 0.0;
-		// stay where it is
-		do goto(self.location);
-	}
+//	action wait {
+//		color <- #grey;
+//		speed <- 0.0;
+//		// stay where it is
+//		do goto(self.location);
+//	}
 	
 	
 		
 		
 		
 		aspect default {
-			//TODO : faire en sortie que la couleur represente le moyen de transport utilisé.
 			draw circle(20) color: color;
 		}	
 		
