@@ -13,10 +13,7 @@ model Traffic
 
 
 //QUESTIONS 
-// - Différence entre add bel et new bel ? dans quel cas on utilise quoi ?
-// - Je crée des desirs basé sur mes bel, 
-// - Qd je fais une rule,qui crée un desir basé sur un belief, est ce qu'il prends la strengh de base ? sinon comment on accède à la strengh ?
-
+// - bloqué dans le percieve, att qd même pour partir mais ducoup n'execute pas le plan work/sleep
 global {
 	//Shapefile of the buildings
 	file building_shapefile <- file("../includes/buildings2.shp");
@@ -30,6 +27,8 @@ global {
 	graph road_network;
 	//Map containing all the weights for the road network graph
 	map<road,float> road_weights;
+	float hours <- 0 update: (cycle / 6 ) mod 24;
+	float minutes <- 0 update: cycle mod 6;
 	
 
 	
@@ -43,7 +42,7 @@ global {
 		create road from: road_shapefile;
 		
 		//Creation of the people agents
-		create people number: 100{
+		create people number: 1{
 			//People agents are located anywhere in one of the building
 			location <- any_location_in(one_of(building));
       	}
@@ -65,6 +64,14 @@ global {
 		//diffuse the pollutions to neighbor cells
 		diffuse var: pollution on: cell proportion: 0.9 ;
 	}
+	
+	reflex write_time{
+		write string(world.hours) + " : "  + world.minutes + 0;
+	}
+	
+	
+	
+	
 }
 
 //Species to represent the people using the skill moving
@@ -76,8 +83,10 @@ species people skills: [moving] control:simple_bdi{
 	building work_building;
 	building home_building;
 	
-	float beginning_time;
-	float ending_time;
+	float beginning_time_h;
+	float beginning_time_m;
+	float ending_time_h;
+	float ending_time_m;
 	
 	path path_home_work;
 	path path_work_home;
@@ -86,7 +95,7 @@ species people skills: [moving] control:simple_bdi{
 	
 	string has_mean_of_transport;
 	//Speed of the agent
-	float speed <- 5 #km/#h;
+	float speed <- 15 #km/#h;
 	
 	rgb color <-rnd(255);
 	
@@ -107,8 +116,11 @@ species people skills: [moving] control:simple_bdi{
 	
 	init{
 		
-		beginning_time<-8.50; //todo : init with a random value with stats bc of night shift for instance
+		beginning_time_h<-8.0; //todo : init with a random value with stats bc of night shift for instance
+		beginning_time_m<-3.0;
 		
+		ending_time_h <- 17.0;
+		ending_time_m <- 3.0;
 		//addr_home <-  rnd(255) rnd(255)any_location_in(one_of(building)); //Rajouter un where pour le type
 		//addr_work <- any_location_in(one_of(building));
 		work_building <- one_of(building);
@@ -129,7 +141,8 @@ species people skills: [moving] control:simple_bdi{
 		feet_grades <- [rnd(9),rnd(9),rnd(9),rnd(9)];
 		weights_grades <-[rnd(9),rnd(9),rnd(9),rnd(9)]; 
 		
-		do add_desire(be_at_work);
+		do add_desire(sleeping);
+		do add_belief(be_at_home);
 		do evaluate_transport();
 	}
 	
@@ -152,8 +165,29 @@ species people skills: [moving] control:simple_bdi{
 	predicate feet_is_best <- new_predicate("feet is best");
 	//desirs avec priorité sur les paramètres
 	
-	predicate waiting <- new_predicate("waiting");
-	predicate time_to_go <- new_predicate("time to go");
+	predicate working <- new_predicate("working");
+	predicate time_to_go_w <- new_predicate("time to go work");
+	predicate time_to_go_h <- new_predicate("time to go home");
+	predicate sleeping <- new_predicate("sleeping");
+	
+	
+	
+	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */ 
+	/*										Reflexes									 */
+	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
+	
+	reflex have_to_go when: (world.hours = beginning_time_h) and (world.minutes = beginning_time_m){ 
+		do add_belief(time_to_go_w);
+		do add_desire(be_at_work); //DEVRAIT SE FAIRE GRACE A LA RULE MAIS ÇA MARCHE PAS
+		write("Je dois aller au taff");	
+		
+	}
+	
+	reflex have_to_go_back when: (world.hours = ending_time_h and world.minutes = ending_time_m) { 
+		do add_belief(time_to_go_h);
+		do add_desire(be_at_home); //PAREIL
+		write("je dois rentrer chez moi");
+	}
 	
 	
 	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */ 
@@ -164,9 +198,8 @@ species people skills: [moving] control:simple_bdi{
 	//à quoi ça sert de mettre perceive building ici ? ça marche pas sans le percieve anyway mais bon.
 	perceive target: building where(location distance_to work_building.location < 2) in: view_dist {
 		ask myself {
-			do add_belief(be_at_work);	
-			//do wait();
-			do add_desire(be_at_home);			
+			do add_belief(be_at_work);
+			do remove_belief(time_to_go_w);		
 		}
 	}
 	
@@ -174,8 +207,8 @@ species people skills: [moving] control:simple_bdi{
 	//We arrived home
 	perceive target: building where(location distance_to home_building.location  < 2) in: view_dist {
 		ask myself {
-			do add_belief(be_at_home);	
-			do add_desire(be_at_work);	
+			do add_belief(be_at_home);
+			do remove_belief(time_to_go_h);	
 			do evaluate_transport();	// update of beliefs	
 		}
 
@@ -187,8 +220,11 @@ species people skills: [moving] control:simple_bdi{
 	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
 	
 	plan lets_go_to_work intention: be_at_work {
+		write("going to work");
+		speed <- 50 #km/#h;
 		path path_followed <- goto (target: work_building.location , on: road_network, recompute_path: false, return_path: true, move_weights: road_weights);
 		do add_subintention(get_current_intention(),mean_of_transport, true);
+		
 		
 		
 		if (path_followed != nil ) {
@@ -201,8 +237,11 @@ species people skills: [moving] control:simple_bdi{
 	
 	
 	plan lets_go_home intention: be_at_home{
+		speed <- 50 #km/#h;
 		path path_followed <- goto (target: home_building.location , on: road_network, recompute_path: false, return_path: true, move_weights: road_weights);
 		do add_subintention(get_current_intention(),mean_of_transport, true);
+		
+		
 		if (path_followed != nil ) {
 			ask (cell overlapping path_followed.shape) {
 				pollution <- pollution + 10.0;
@@ -210,10 +249,16 @@ species people skills: [moving] control:simple_bdi{
 		}
 	}
 		
-//	plan wait_plan intention: waiting {
-//		do wait;
-//	}
-//		
+	plan work intention: working{
+		write("im working");
+		do work;
+		
+	}
+	
+	plan sleep intention: sleeping{
+		write("im sleeping");
+		do sleep;
+	}
 	
 	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */ 
 	/*										Rules						   				 */
@@ -222,8 +267,19 @@ species people skills: [moving] control:simple_bdi{
 	rule belief: bike_is_best new_desire: go_by_bike strength: mean_bike;
 	rule belief: car_is_best new_desire: go_by_car strength: mean_car;
 	rule belief: bus_is_best new_desire: go_by_bus strength: mean_bus;
+	rule belief: feet_is_best new_desire: go_by_bus strength: mean_feet;	
 	
-	//rule belief: be_at_home and not time_to_go new_desire: waiting;
+	rule belief: be_at_home and time_to_go_w new_desire: be_at_work;
+	rule belief: be_at_work and time_to_go_h new_desire: be_at_home;
+	
+	rule belief: be_at_work and not time_to_go_h new_desire: working;
+	rule belief: be_at_home and not time_to_go_w new_desire: sleeping;
+	
+	rule belief: time_to_go_h remove_desire: working;
+	rule belief: time_to_go_w remove_desire: sleeping;
+	
+	rule belief: be_at_work remove_desire: time_to_go_w;
+	rule belief: be_at_home remove_desire: time_to_go_h;
 	
 	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */ 
 	/*										Actions										 */
@@ -268,12 +324,21 @@ species people skills: [moving] control:simple_bdi{
 	}
 	
 	
-//	action wait {
-//		color <- #grey;
-//		speed <- 0.0;
-//		// stay where it is
-//		do goto(self.location);
-//	}
+	action work{
+		//write("i am working");
+		color <- #grey;
+		speed <- 0.0;
+		// stay where it is
+		do goto(self.location);
+	}
+	
+	action sleep{
+		//write("i am sleeping");
+		color <- #black;
+		speed <- 0.0;
+		// stay where it is
+		do goto(self.location);
+	}
 	
 	
 		
@@ -325,8 +390,10 @@ grid cell height: 50 width: 50 neighbors: 8{
 }
 
 experiment traffic type: gui {
-	float minimum_cycle_duration <- 0.01;
+	float minimum_cycle_duration <- 0.1#sec;
 	output {
+		
+		
 		display carte type: opengl{
 			species building refresh: false;
 			species road ;
