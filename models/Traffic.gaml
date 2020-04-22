@@ -44,7 +44,7 @@ global {
 		//Creation of the people agents
 		create people number: 1{
 			//People agents are located anywhere in one of the building
-			location <- any_location_in(one_of(building));
+			location <- home_building.location;
       	}
       	//Weights of the road
       	road_weights <- road as_map (each::each.shape.perimeter);
@@ -178,14 +178,14 @@ species people skills: [moving] control:simple_bdi{
 	
 	reflex have_to_go when: (world.hours = beginning_time_h) and (world.minutes = beginning_time_m){ 
 		do add_belief(time_to_go_w);
-		do add_desire(be_at_work); //DEVRAIT SE FAIRE GRACE A LA RULE MAIS ÇA MARCHE PAS
+		//do add_desire(be_at_work); //DEVRAIT SE FAIRE GRACE A LA RULE MAIS ÇA MARCHE PAS
 		write("Je dois aller au taff");	
 		
 	}
 	
 	reflex have_to_go_back when: (world.hours = ending_time_h and world.minutes = ending_time_m) { 
 		do add_belief(time_to_go_h);
-		do add_desire(be_at_home); //PAREIL
+		//do add_desire(be_at_home); //PAREIL
 		write("je dois rentrer chez moi");
 	}
 	
@@ -194,8 +194,6 @@ species people skills: [moving] control:simple_bdi{
 	/*										Percieve									 */
 	/*=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-= */
 	
-	//We arrived work
-	//à quoi ça sert de mettre perceive building ici ? ça marche pas sans le percieve anyway mais bon.
 	perceive target: building where(location distance_to work_building.location < 2) in: view_dist {
 		ask myself {
 			do add_belief(be_at_work);
@@ -203,8 +201,7 @@ species people skills: [moving] control:simple_bdi{
 		}
 	}
 	
-		
-	//We arrived home
+	
 	perceive target: building where(location distance_to home_building.location  < 2) in: view_dist {
 		ask myself {
 			do add_belief(be_at_home);
@@ -249,6 +246,8 @@ species people skills: [moving] control:simple_bdi{
 		}
 	}
 		
+		
+		//ne rentre pas ici
 	plan work intention: working{
 		write("im working");
 		do work;
@@ -269,11 +268,11 @@ species people skills: [moving] control:simple_bdi{
 	rule belief: bus_is_best new_desire: go_by_bus strength: mean_bus;
 	rule belief: feet_is_best new_desire: go_by_bus strength: mean_feet;	
 	
-	rule belief: be_at_home and time_to_go_w new_desire: be_at_work;
-	rule belief: be_at_work and time_to_go_h new_desire: be_at_home;
+	rule beliefs: [be_at_home, time_to_go_w] new_desire: be_at_work; //CETTE règle là
+	rule beliefs: [be_at_work, time_to_go_h] new_desire: be_at_home;
 	
-	rule belief: be_at_work and not time_to_go_h new_desire: working;
-	rule belief: be_at_home and not time_to_go_w new_desire: sleeping;
+	rule beliefs: [be_at_work, not time_to_go_h] new_desire: working;
+	rule beliefs: [be_at_home, not time_to_go_w] new_desire: sleeping;
 	
 	rule belief: time_to_go_h remove_desire: working;
 	rule belief: time_to_go_w remove_desire: sleeping;
@@ -325,7 +324,7 @@ species people skills: [moving] control:simple_bdi{
 	
 	
 	action work{
-		//write("i am working");
+		write("i am working");
 		color <- #grey;
 		speed <- 0.0;
 		// stay where it is
