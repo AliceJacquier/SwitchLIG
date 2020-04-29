@@ -1,3 +1,5 @@
+
+
 /***
 * Name: Traffic
 * Author: alice
@@ -77,6 +79,8 @@ global {
 //	predicate do_actvity <- new_predicate("do activity");
 	
 	init {
+		bus_freq <- 7.0;
+		bus_capacity <- 50.0;
 		
 		gas_price <- 1.5; //prix au litre
 		subscription_price <- 30.0; //prix par mois
@@ -90,146 +94,14 @@ global {
 		create road from: road_shapefile;
 		
 		//Creation of the people agents
-		create people number: 1000 with: [home_building::one_of(building), work_building::one_of(building) ];
+		create people number: 10 with: [home_building::one_of(building), work_building::one_of(building) ];
       	road_network <- as_edge_graph(road);
       	
-//      	loop i from: 0 to: length(type_mode){
-//      		info_mode_env[type_mode[i]]["safety"] <- compute_safety(type_mode[i]);
-//      		info_mode_env[type_mode[i]]["time"] <- compute_time(type_mode[i]);
-//      		info_mode_env[type_mode[i]]["ecology"] <- compute_ecology(type_mode[i]);
-//      		info_mode_env[type_mode[i]]["comfort"] <- compute_comfort(type_mode[i]);
-//      		info_mode_env[type_mode[i]]["price"] <- compute_price(type_mode[i]);
-//      		info_mode_env[type_mode[i]]["simplicity"] <- compute_simplicity(type_mode[i]);
-//	  	}
       	
       	
 	}	
 	
 	
-	//=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-==-=-=-=--=-=-=-=-=-=-=-=-=-=-=-=
-	// FONCTIONS MAJ ENV
-	//=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=-=-=-=-==-=-=-=-=-=-=-=-=-=-=
-	
-//
-//	
-//	float compute_safety(string type){
-//		float val; // Val doit avoir une valeur entre 0 et 1
-//		switch type {
-//			match "car" {
-//				// fréquentation des routes, à voir comment définir // nb of visitors
-//			}
-//			match "bike" {
-//				//taux de route collées aux pistes cyclables. à voir comment avoir cette info
-//			}
-//			match "bus" {
-//				//frequentation des TeC, car plus grand risque d'agression. 
-//			}
-//			match "feet"{
-//				//selon genre/heure de la journée donc à voir selon l'agent
-//			}
-//		}	
-//		return val;
-//	}
-//	
-//	
-//	float compute_time(string type){ //maybe pas pertinant dans l'environnement car est vraiment situationnel de la position de l'agent et de sa cible
-//		float val; // Val doit avoir une valeur entre 0 et 1
-//		switch type {
-//			match "car" {
-//				// temps moyen à moyenner par agent ?
-//			}
-//			match "bike" {
-//				//distance + "croisements" avec d'autres routes (cf article le monde diplo)
-//			}
-//			match "bus" {
-//				//distance +freq
-//			}
-//			match "feet"{
-//				//distance
-//			}
-//		}	
-//		return val;
-//	}
-//	
-//	
-//	float compute_comfort(string type){
-//		float val; // Val doit avoir une valeur entre 0 et 1
-//		switch type {
-//			match "car" {
-//				val <- 1.0;
-//			}
-//			match "bike" {
-//				//selon le niveau de sportivité de l'agent + distance
-//			}
-//			match "bus" {
-//				//taux de personnes empruntant les TeC, car moins de place 
-//			}
-//			match "feet"{
-//				//selon la distance
-//			}
-//		}	
-//		return val;
-//	}
-//	
-//	
-//	float compute_price(string type){
-//		float val; // Val doit avoir une valeur entre 0 et 1
-//		switch type {
-//			match "car" {
-//				// selon essence + trajet
-//			}
-//			match "bike" {
-//				val <- 1.0;
-//			}
-//			match "bus" {
-//				//prix abonnement
-//			}
-//			match "feet"{
-//				val <- 1.0;
-//			}
-//		}	
-//		return val;
-//	}
-//	
-//	//SELON AGENT
-//	float compute_ecology(string type){
-//		float val; // Val doit avoir une valeur entre 0 et 1
-//		switch type {
-//			match "car" {
-//				// selon la distance + pollution générale
-//			}
-//			match "bike" {
-//				val <- 1.0;
-//			}
-//			match "bus" {
-//				//à moitié ecolo + pollutuon générale
-//			}
-//			match "feet"{
-//				val <- 1.0;
-//			}
-//		}	
-//		return val;
-//	}
-//	
-//	
-//	float compute_simplicity(string type){ //SELON AGENT
-//		float val; // Val doit avoir une valeur entre 0 et 1
-//		switch type {
-//			match "car" {
-//				// selon parking
-//			}
-//			match "bike" {
-//				//selon les infrastructures de pistes cyclables (rejoins un peu danger)
-//			}
-//			match "bus" {
-//				//changements nécéssaires pour arriver a destination
-//			}
-//			match "feet"{
-//				//selon distance
-//			}
-//		}	
-//		return val;		
-//	}
 	
 	
 }//fin global
@@ -243,27 +115,35 @@ species people skills: [moving] control:simple_bdi{
 	point target;
 	building target_building;
 	
-	//addresses of agent
+	map<string,int> grades;//how agent care for differents criteria	
+	map<string, float> priority_modes;//priority for each mode
+	
 	building work_building;
 	building home_building;
 	
 	rgb color <-#red;
 	
-	map<string,int> grades;
-	
-	map<string, map<string,float>> info_mode_user;
-	
 	float distance;
 	
+	
+	
+	
 	init{
-		//People agents are located anywhere in one of the building
-		location <- home_building.location;
 		
-		distance <- home_building distance_to work_building;
-		
-		loop i from: 0 to: length(criteria){
+		loop i from: 0 to: length(criteria)-1{
       		grades[criteria[i]]<- rnd(9);
 	  	}
+		
+		
+		loop i from: 0 to: length(type_mode)-1{
+			priority_modes[type_mode[i]]<- compute_priority_mobility_mode(type_mode[i]);
+		}
+		
+		
+		
+		//People agents are located anywhere in one of the building
+		location <- home_building.location;
+		distance <- home_building distance_to work_building;
 		
 		
 		//0 = lundi; 6 = dimanche
@@ -302,11 +182,13 @@ species people skills: [moving] control:simple_bdi{
 						//on considère qu'une voiture dépense 7,2 litres pour 100 km(moyenne sur 2019)
 						float abs_price <- 7.2*distance/100*gas_price;
 						//voir comment normaliser
+						val <-0.5;
 					}
 					match "time" {
 						//on considère que la voiture à une allure moyenne de 25km/h
 						float abs_time <- distance/25.0;
 						//pareil, normaliser en comparant avec les autres ?
+						val <-0.5;
 					}
 					match "ecology"{
 						val <-0.0;
@@ -316,6 +198,7 @@ species people skills: [moving] control:simple_bdi{
 					}
 					match "safety"{
 						val <- percentage_of_drivers/100;
+						
 						//eventuellement prendre en compte la capacité de la route ? est-ce une info à la quelle on a accès ?
 					}
 				}	
@@ -324,6 +207,7 @@ species people skills: [moving] control:simple_bdi{
 				switch criterion {
 					match "comfort" {
 						//enfants, motif du déplacement
+						val <-0.5;
 					}
 					match "price" {
 						val <- 1.0;
@@ -331,15 +215,18 @@ species people skills: [moving] control:simple_bdi{
 					match "time" {
 						//on considère que les vélos se déplacent en moyenne à 10km/h
 						float abs_time <- distance/10.0;
+						val <-0.5;
 					}
 					match "ecology"{
 						val <- 1.0;
 					}
 					match "simplicity"{
 						// dans le trajet effectué, voir pourcentage route cyclables + distance au dessus de 20min pas cool (voir papiers socio)
+						val <-0.5;
 					}
 					match "safety"{
 						//dans le trajet effectué pourcentage de route non partagée avec automobilistes
+						val <-0.5;
 					}			
 				}
 			}//end match bike
@@ -352,17 +239,20 @@ species people skills: [moving] control:simple_bdi{
 						val <- val1/((30/bus_freq)* bus_capacity);
 					}
 					match "price" {
-					 float abs_price <- subscription_price;
+					 	float abs_price <- subscription_price;
+						val <-0.5;
 					}
 					match "time" {
 						// On considère qu'un bus se déplace à 10km/h
 						float abs_time <- distance/10.0;
+						val <-0.5;
 					}
 					match "ecology"{
 						val <- 0.75;
 					}
 					match "simplicity"{
 						//Dépend du nombre de ligne de bus différentes à prendre; à voir comment faire avec ces data
+						val <-0.5;
 					}
 					match "safety"{
 						if(current_date.hour>21.0){
@@ -388,6 +278,7 @@ species people skills: [moving] control:simple_bdi{
 					}
 					match "time" {
 						float abs_time <- distance/5;
+						val <-0.5;
 					}
 					match "ecology"{
 						val <- 1.0;
@@ -417,7 +308,7 @@ species people skills: [moving] control:simple_bdi{
 	
 	float compute_priority_mobility_mode(string type) {
 		float val <- 0.0;
-		loop i from: 0 to: length(criteria){
+		loop i from: 0 to: length(criteria)-1{
 			val <- grades[criteria[i]]*compute_value(type,criteria[i]);
 		}
 	
@@ -448,7 +339,7 @@ species people skills: [moving] control:simple_bdi{
 			do add_subintention(get_current_intention(),at_target, true);
 			do current_intention_on_hold();
 		}
-		color <- #blue;
+		//color <- #blue;
 	}
 	
 	
@@ -458,7 +349,7 @@ species people skills: [moving] control:simple_bdi{
 			do add_subintention(get_current_intention(),at_target, true);
 			do current_intention_on_hold();
 		}
-		color <- #red;
+		//color <- #red;
 	}
 	
 	plan do_eating_at_home intention: eating priority: rnd(1.0){
@@ -467,7 +358,7 @@ species people skills: [moving] control:simple_bdi{
 			do add_subintention(get_current_intention(),at_target, true);
 			do current_intention_on_hold();
 		}
-		color <- #yellow;
+		//color <- #yellow;
 	}
 	
 	plan do_eating_restaurant intention: eating priority: rnd(1.0){
@@ -476,7 +367,7 @@ species people skills: [moving] control:simple_bdi{
 			do add_subintention(get_current_intention(),at_target, true);
 			do current_intention_on_hold();
 		}
-		color <- #green;
+		//color <- #green;
 	}
 	
 	plan see_a_movie intention: leisure priority: rnd(1.0){
@@ -485,7 +376,7 @@ species people skills: [moving] control:simple_bdi{
 			do add_subintention(get_current_intention(),at_target, true);
 			do current_intention_on_hold();
 		}
-		color <- #magenta;
+		//color <- #magenta;
 	}
 	
 	plan meet_a_friend intention: leisure priority: rnd(1.0){
@@ -494,7 +385,7 @@ species people skills: [moving] control:simple_bdi{
 			do add_subintention(get_current_intention(),at_target, true);
 			do current_intention_on_hold();
 		}
-		color <- #blue;
+		//color <- #blue;
 	}
 	
 	
@@ -507,6 +398,7 @@ species people skills: [moving] control:simple_bdi{
 		if (target = location) {
 			do add_belief(at_target);
 		}
+		color <- #red;
 	}
 	
 	plan cycling intention: at_target  finished_when: target = location priority: compute_priority_mobility_mode("bike"){
@@ -514,6 +406,7 @@ species people skills: [moving] control:simple_bdi{
 		if (target = location) {
 			do add_belief(at_target);
 		}
+		color <- #green;
 	}
 	
 	plan walking intention: at_target  finished_when: target = location priority: compute_priority_mobility_mode("feet"){
@@ -521,6 +414,7 @@ species people skills: [moving] control:simple_bdi{
 		if (target = location) {
 			do add_belief(at_target);
 		}
+		color <- #yellow;
 	}
 	
 	plan taking_bus intention: at_target  finished_when: target = location priority: compute_priority_mobility_mode("bus"){
@@ -528,10 +422,11 @@ species people skills: [moving] control:simple_bdi{
 		if (target = location) {
 			do add_belief(at_target);
 		}
+		color <- #blue;
 	}
 	
 	aspect default {
-		draw circle(20) color: color border: #black depth: 1.0;
+		draw circle(30) color: color border: #black depth: 1.0;
 	}	
 		
 }
@@ -552,7 +447,7 @@ species building {
 //Species to represent the roads
 species road {
 	aspect default {
-		draw shape color: #red;
+		draw shape color: #gray;
 	} 
 }
 
